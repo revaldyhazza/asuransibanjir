@@ -171,7 +171,7 @@ if csv_file:
             st.subheader("🧮 Persentase Estimasi Kerugian")
             st.markdown("""
                 <div style='text-align: justify'>
-                Kategori Okupasi dibedakan menjadi Residensial, Industrial dan Komersial. Selain itu, Kategori Risiko akan memuat jumlah lantai dari bangunan. Untuk mengetahui acuan rate yang digunakan oleh Askrindo, maka dapat dilihat melalui tabel berikut.
+                Kategori Okupasi dibedakan menjadi Residensial, Industrial dan Komersial. Selain itu, Kategori Risiko akan memuat jumlah lantai dari bangunan. Untuk mengetahui acuan persentase estimasi kerugian yang digunakan, maka dapat dilihat melalui tabel berikut.
                 </div>
             """, unsafe_allow_html=True)
 
@@ -361,7 +361,7 @@ if csv_file:
             )
 
             if lon_col and lat_col and not final.empty:
-                st.subheader("🌐 Peta Interaktif dengan Pydeck")
+                st.subheader("🌐 Peta Sebaran Portofolio")
 
             # Buat kolom popup
             final["popup"] = final.apply(
