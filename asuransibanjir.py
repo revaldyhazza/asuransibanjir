@@ -18,8 +18,8 @@ import plotly.express as px
 import leafmap.foliumap as leafmap
 
 
-st.set_page_config(page_title="Asuransi Banjir Askrindo", page_icon="🏞️", layout="centered")
-st.title("🌊 Web Application Flood Insurance Askrindo")
+st.set_page_config(page_title="Asuransi Banjir", page_icon="🏞️", layout="centered")
+st.title("🌊 Web Application Flood Insurance")
 
 # Step 1: Upload CSV
 st.subheader("⬆️ Upload Data yang Diperlukan")
@@ -356,7 +356,7 @@ if csv_file:
             st.download_button(
                 "⬇️ Unduh Data dengan PML",
                 data=output_premi.getvalue(),
-                file_name="DataBanjirAskrindo_Computated.xlsx",
+                file_name="DataBanjir_Computated.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
