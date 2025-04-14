@@ -12,9 +12,11 @@ import fiona
 import tempfile
 import io
 import altair as alt
-from keplergl import KeplerGl
 import streamlit.components.v1 as components
 import pydeck as pdk
+import plotly.express as px
+import leafmap.foliumap as leafmap
+
 
 st.set_page_config(page_title="Asuransi Banjir Askrindo", page_icon="🏞️", layout="centered")
 st.title("🌊 Web Application Flood Insurance Askrindo")
@@ -159,7 +161,8 @@ if csv_file:
             # Process gridcode and categorize risk
             if grid_col:
                 final['Kategori Risiko'] = final[grid_col].map({1: 'Rendah', 2: 'Sedang', 3: 'Tinggi'}).fillna("No Risk")
-                st.dataframe(final[[lon_col, lat_col, grid_col, 'Kategori Risiko']], use_container_width=True, hide_index=True)
+                st.dataframe(final[[lon_col, lat_col, grid_col, 'Kategori Risiko']],
+                            use_container_width=True, hide_index=True)
                 st.info(f"🔍 Data akhir (termasuk yang tidak memiliki intersection di .shp) memiliki **{len(final):,} baris.**")
             else:
                 st.warning("⚠️ Tidak ditemukan kolom terkait 'gridcode'. Tidak dapat mengkategorikan risiko.")
@@ -345,7 +348,8 @@ if csv_file:
 
             final['PML'] = final[selected_tsi] * final[selected_rate]
 
-            st.dataframe(final[[selected_tsi, selected_rate, 'PML']], use_container_width=True, hide_index=True)
+            st.dataframe(final[[selected_tsi, selected_rate, 'PML']],
+                        use_container_width=True, hide_index=True)
 
             output_premi = io.BytesIO()
             final.to_excel(output_premi, index=False, engine='openpyxl')
@@ -356,28 +360,60 @@ if csv_file:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
 
-            # Display map with coordinates
-            # Cek data valid
             if lon_col and lat_col and not final.empty:
-                st.subheader("🌐 Peta Interaktif Kepler.gl")
+                st.subheader("🌐 Peta Interaktif dengan Pydeck")
 
-                # Siapkan dataframe untuk Kepler
-                kepler_data = final[[lat_col, lon_col] + [col for col in final.columns if col not in [lat_col, lon_col]]]
+            # Buat kolom popup
+            final["popup"] = final.apply(
+                lambda row: "<br>".join(
+                [f"<b>{col}</b>: {row[col]}" if pd.notnull(row[col]) else f"<b>{col}</b>: -" for col in final.columns]
+                ),
+                axis=1
+            )
 
-                # Ganti nama kolom agar Kepler mengenali sebagai koordinat
-                kepler_data = kepler_data.rename(columns={lat_col: "latitude", lon_col: "longitude"})
+            # Siapkan data untuk Pydeck sebagai dictionary untuk menghindari masalah serialisasi
+            data = final[[lon_col, lat_col, "popup"]].to_dict(orient="records")
 
-                # Buat instance KeplerGl
-                map_ = KeplerGl(height=600, data={"data": kepler_data})
+            # Buat layer
+            layer = pdk.Layer(
+            "ScatterplotLayer",
+            data=data,
+            get_position=[lon_col, lat_col],
+            get_radius=100,
+            get_fill_color=[255, 0, 0, 140],  # Merah dengan transparansi
+            pickable=True,
+            auto_highlight=True,
+            )
 
-                # Simpan sebagai HTML
-                map_.save_to_html(file_name="kepler_map.html")
+            # Tentukan view state
+            view_state = pdk.ViewState(
+                latitude=float(final[lat_col].mean()),
+                longitude=float(final[lon_col].mean()),
+                zoom=7,
+                pitch=0,
+            )
 
-                # Tampilkan di Streamlit
-                with open("kepler_map.html", "r", encoding="utf-8") as f:
-                    html_data = f.read()
-                    components.html(html_data, height=700)
+            # Buat deck dengan map_style gratis
+            deck = pdk.Deck(
+                layers=[layer],
+                initial_view_state=view_state,
+                tooltip={
+                    "html": "{popup}",
+                    "style": {
+                        "backgroundColor": "white",
+                        "color": "black",
+                        "fontSize": "7px",  # Perkecil ukuran teks
+                        "lineHeight": "1",  # Jarak antar baris lebih rapat
+                        "maxWidth": "200px",  # Batasi lebar tooltip
+                        "padding": "5px",  # Tambahkan padding agar rapi
+                    }
+                },
+            map_style="road"  # Gunakan gaya dasar tanpa token
+            )
 
+            # Render di Streamlit
+            st.pydeck_chart(deck, use_container_width=True)
+    
             # Summary section
             st.markdown("## 📊 Ringkasan Hasil")
 
