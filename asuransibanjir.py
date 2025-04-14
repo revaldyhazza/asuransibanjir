@@ -12,6 +12,9 @@ import fiona
 import tempfile
 import io
 import altair as alt
+from keplergl import KeplerGl
+import streamlit.components.v1 as components
+import pydeck as pdk
 
 st.set_page_config(page_title="Asuransi Banjir Askrindo", page_icon="🏞️", layout="centered")
 st.title("🌊 Web Application Flood Insurance Askrindo")
@@ -48,7 +51,11 @@ if csv_file:
 
     # Step 3: Upload shapefiles
     st.subheader("🗂 Upload Shapefile")
-    shp_zips = st.file_uploader("Upload Beberapa Shapefile (.zip). File zip ini harus terdiri atas .shp, .shx, .dbf, .prj, dsb", type=["zip"], accept_multiple_files=True)
+    shp_zips = st.file_uploader(
+        "Upload Beberapa Shapefile (.zip). File zip ini harus terdiri atas .shp, .shx, .dbf, .prj, dsb",
+        type=["zip"],
+        accept_multiple_files=True
+    )
 
     def clean_coordinate_column(series):
         return (
@@ -151,9 +158,8 @@ if csv_file:
 
             # Process gridcode and categorize risk
             if grid_col:
-                # Use the first gridcode column directly
                 final['Kategori Risiko'] = final[grid_col].map({1: 'Rendah', 2: 'Sedang', 3: 'Tinggi'}).fillna("No Risk")
-                st.dataframe(final[[grid_col, 'Kategori Risiko']], use_container_width=True, hide_index=True)
+                st.dataframe(final[[lon_col, lat_col, grid_col, 'Kategori Risiko']], use_container_width=True, hide_index=True)
                 st.info(f"🔍 Data akhir (termasuk yang tidak memiliki intersection di .shp) memiliki **{len(final):,} baris.**")
             else:
                 st.warning("⚠️ Tidak ditemukan kolom terkait 'gridcode'. Tidak dapat mengkategorikan risiko.")
@@ -161,56 +167,55 @@ if csv_file:
             # Rate calculation section
             st.subheader("🧮 Persentase Estimasi Kerugian")
             st.markdown("""
-            <div style='text-align: justify'>
-            Kategori Okupasi dibedakan menjadi Residensial, Industrial dan Komersial. Selain itu, Kategori Risiko akan memuat jumlah lantai dari bangunan. Untuk mengetahui acuan rate yang digunakan oleh Askrindo, maka dapat dilihat melalui tabel berikut.
-            </div>
+                <div style='text-align: justify'>
+                Kategori Okupasi dibedakan menjadi Residensial, Industrial dan Komersial. Selain itu, Kategori Risiko akan memuat jumlah lantai dari bangunan. Untuk mengetahui acuan rate yang digunakan oleh Askrindo, maka dapat dilihat melalui tabel berikut.
+                </div>
             """, unsafe_allow_html=True)
 
             # Define the data with a MultiIndex structure
-            # First, create the data as a list of dictionaries for each row
             data_rows = [
                 # Building
-                {"Kategori Utama": "Building", "Kategori": "No Risk", 
-                 "Residential_1_lantai": "0%", "Residential_>1_lantai": "0%", 
-                 "Commercial_1_lantai": "0%", "Commercial_>1_lantai": "0%", 
+                {"Kategori Utama": "Building", "Kategori": "No Risk",
+                 "Residential_1_lantai": "0%", "Residential_>1_lantai": "0%",
+                 "Commercial_1_lantai": "0%", "Commercial_>1_lantai": "0%",
                  "Industrial_1_lantai": "0%", "Industrial_>1_lantai": "0%"},
-                {"Kategori Utama": "Building", "Kategori": "Rendah (s.d. 0.75M)", 
-                 "Residential_1_lantai": "15%", "Residential_>1_lantai": "10%", 
-                 "Commercial_1_lantai": "20%", "Commercial_>1_lantai": "15%", 
+                {"Kategori Utama": "Building", "Kategori": "Rendah (s.d. 0.75M)",
+                 "Residential_1_lantai": "15%", "Residential_>1_lantai": "10%",
+                 "Commercial_1_lantai": "20%", "Commercial_>1_lantai": "15%",
                  "Industrial_1_lantai": "10%", "Industrial_>1_lantai": "8%"},
-                {"Kategori Utama": "Building", "Kategori": "Sedang (>0.75M - 1.5M)", 
-                 "Residential_1_lantai": "30%", "Residential_>1_lantai": "20%", 
-                 "Commercial_1_lantai": "35%", "Commercial_>1_lantai": "25%", 
+                {"Kategori Utama": "Building", "Kategori": "Sedang (>0.75M - 1.5M)",
+                 "Residential_1_lantai": "30%", "Residential_>1_lantai": "20%",
+                 "Commercial_1_lantai": "35%", "Commercial_>1_lantai": "25%",
                  "Industrial_1_lantai": "20%", "Industrial_>1_lantai": "15%"},
-                {"Kategori Utama": "Building", "Kategori": "Tinggi (>1.5M)", 
-                 "Residential_1_lantai": "50%", "Residential_>1_lantai": "35%", 
-                 "Commercial_1_lantai": "55%", "Commercial_>1_lantai": "40%", 
+                {"Kategori Utama": "Building", "Kategori": "Tinggi (>1.5M)",
+                 "Residential_1_lantai": "50%", "Residential_>1_lantai": "35%",
+                 "Commercial_1_lantai": "55%", "Commercial_>1_lantai": "40%",
                  "Industrial_1_lantai": "40%", "Industrial_>1_lantai": "30%"},
                 # Content/Stock
-                {"Kategori Utama": "Content/Stock", "Kategori": "Rendah (≤0.75M)", 
-                 "Residential_1_lantai": "20%", "Residential_>1_lantai": "15%", 
-                 "Commercial_1_lantai": "30%", "Commercial_>1_lantai": "25%", 
+                {"Kategori Utama": "Content/Stock", "Kategori": "Rendah (≤0.75M)",
+                 "Residential_1_lantai": "20%", "Residential_>1_lantai": "15%",
+                 "Commercial_1_lantai": "30%", "Commercial_>1_lantai": "25%",
                  "Industrial_1_lantai": "15%", "Industrial_>1_lantai": "10%"},
-                {"Kategori Utama": "Content/Stock", "Kategori": "Sedang (>0.75M - 1.5M)", 
-                 "Residential_1_lantai": "40%", "Residential_>1_lantai": "30%", 
-                 "Commercial_1_lantai": "50%", "Commercial_>1_lantai": "40%", 
+                {"Kategori Utama": "Content/Stock", "Kategori": "Sedang (>0.75M - 1.5M)",
+                 "Residential_1_lantai": "40%", "Residential_>1_lantai": "30%",
+                 "Commercial_1_lantai": "50%", "Commercial_>1_lantai": "40%",
                  "Industrial_1_lantai": "30%", "Industrial_>1_lantai": "25%"},
-                {"Kategori Utama": "Content/Stock", "Kategori": "Tinggi (>1.5M)", 
-                 "Residential_1_lantai": "60%", "Residential_>1_lantai": "45%", 
-                 "Commercial_1_lantai": "70%", "Commercial_>1_lantai": "55%", 
+                {"Kategori Utama": "Content/Stock", "Kategori": "Tinggi (>1.5M)",
+                 "Residential_1_lantai": "60%", "Residential_>1_lantai": "45%",
+                 "Commercial_1_lantai": "70%", "Commercial_>1_lantai": "55%",
                  "Industrial_1_lantai": "50%", "Industrial_>1_lantai": "40%"},
                 # Machine
-                {"Kategori Utama": "Machine", "Kategori": "Rendah (≤0.75M)", 
-                 "Residential_1_lantai": "10%", "Residential_>1_lantai": "8%", 
-                 "Commercial_1_lantai": "15%", "Commercial_>1_lantai": "12%", 
+                {"Kategori Utama": "Machine", "Kategori": "Rendah (≤0.75M)",
+                 "Residential_1_lantai": "10%", "Residential_>1_lantai": "8%",
+                 "Commercial_1_lantai": "15%", "Commercial_>1_lantai": "12%",
                  "Industrial_1_lantai": "25%", "Industrial_>1_lantai": "20%"},
-                {"Kategori Utama": "Machine", "Kategori": "Sedang (>0.75M - 1.5M)", 
-                 "Residential_1_lantai": "25%", "Residential_>1_lantai": "20%", 
-                 "Commercial_1_lantai": "35%", "Commercial_>1_lantai": "30%", 
+                {"Kategori Utama": "Machine", "Kategori": "Sedang (>0.75M - 1.5M)",
+                 "Residential_1_lantai": "25%", "Residential_>1_lantai": "20%",
+                 "Commercial_1_lantai": "35%", "Commercial_>1_lantai": "30%",
                  "Industrial_1_lantai": "50%", "Industrial_>1_lantai": "40%"},
-                {"Kategori Utama": "Machine", "Kategori": "Tinggi (>1.5M)", 
-                 "Residential_1_lantai": "45%", "Residential_>1_lantai": "35%", 
-                 "Commercial_1_lantai": "55%", "Commercial_>1_lantai": "45%", 
+                {"Kategori Utama": "Machine", "Kategori": "Tinggi (>1.5M)",
+                 "Residential_1_lantai": "45%", "Residential_>1_lantai": "35%",
+                 "Commercial_1_lantai": "55%", "Commercial_>1_lantai": "45%",
                  "Industrial_1_lantai": "70%", "Industrial_>1_lantai": "60%"}
             ]
 
@@ -308,7 +313,8 @@ if csv_file:
 
                 final['Rate'] = final.apply(lookup_rate, axis=1)
 
-                st.dataframe(final[['Kategori Risiko', building_col, floor_col, 'Rate']], use_container_width=True, hide_index=True)
+                st.dataframe(final[['Kategori Risiko', building_col, floor_col, 'Rate']],
+                            use_container_width=True, hide_index=True)
                 st.success(f"Data berhasil dimuat disertai rate sebanyak **{len(df):,} baris valid**.")
 
             # Define columns to show
@@ -331,7 +337,7 @@ if csv_file:
             def clean_tsi_column(series):
                 return pd.to_numeric(
                     series.astype(str)
-                        .str.replace(r"[^\d]", "", regex=True),  # hapus semua kecuali digit
+                    .str.replace(r"[^\d]", "", regex=True),  # hapus semua kecuali digit
                     errors='coerce'
                 )
 
@@ -351,31 +357,26 @@ if csv_file:
             )
 
             # Display map with coordinates
+            # Cek data valid
             if lon_col and lat_col and not final.empty:
-                st.subheader("🌐 Peta Titik Koordinat")
+                st.subheader("🌐 Peta Interaktif Kepler.gl")
 
-                # Buat peta dengan titik tengah berdasarkan rata-rata lokasi
-                map_center = [final[lat_col].mean(), final[lon_col].mean()]
-                m = folium.Map(location=map_center, zoom_start=9)
-                marker_cluster = MarkerCluster().add_to(m)
+                # Siapkan dataframe untuk Kepler
+                kepler_data = final[[lat_col, lon_col] + [col for col in final.columns if col not in [lat_col, lon_col]]]
 
-                # Tambahkan titik ke peta
-                for _, row in final.iterrows():
-                    popup_content = "<br>".join([
-                        f"<b>{col}</b>: {row[col]}" if pd.notnull(row[col]) else f"<b>{col}</b>: -"
-                        for col in final.columns
-                    ])
-                    folium.CircleMarker(
-                        location=[row[lat_col], row[lon_col]],
-                        radius=4,
-                        color="blue",
-                        fill=True,
-                        fill_opacity=0.6,
-                        popup=folium.Popup(popup_content, max_width=300, auto_pan=True)
-                    ).add_to(marker_cluster)
+                # Ganti nama kolom agar Kepler mengenali sebagai koordinat
+                kepler_data = kepler_data.rename(columns={lat_col: "latitude", lon_col: "longitude"})
 
-                # Tampilkan peta di Streamlit
-                folium_static(m, width=2000, height=1000)
+                # Buat instance KeplerGl
+                map_ = KeplerGl(height=600, data={"data": kepler_data})
+
+                # Simpan sebagai HTML
+                map_.save_to_html(file_name="kepler_map.html")
+
+                # Tampilkan di Streamlit
+                with open("kepler_map.html", "r", encoding="utf-8") as f:
+                    html_data = f.read()
+                    components.html(html_data, height=700)
 
             # Summary section
             st.markdown("## 📊 Ringkasan Hasil")
