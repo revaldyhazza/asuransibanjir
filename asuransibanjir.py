@@ -18,7 +18,7 @@ import plotly.express as px
 import leafmap.foliumap as leafmap
 
 
-st.set_page_config(page_title="Asuransi Banjir", page_icon="🏞️", layout="centered")
+st.set_page_config(page_title="Asuransi Banjir", page_icon="🏞️", layout="wide")
 st.title("🌊 Web Application Flood Insurance")
 
 # Step 1: Upload CSV
