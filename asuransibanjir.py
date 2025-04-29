@@ -401,7 +401,7 @@ if csv_file:
                 )
 
                 # Tampilkan map
-                st.pydeck_chart(deck, use_container_width=True, height = 1500, width = 1000)
+                st.pydeck_chart(deck, use_container_width=True, height = 750, width = 1000)
 
             # Step 9: Ringkasan Hasil
             st.markdown("## 📊 Ringkasan Hasil")
